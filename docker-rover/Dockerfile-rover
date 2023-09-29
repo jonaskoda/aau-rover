@@ -1,0 +1,62 @@
+# Prebuilt base image with jetpack, pytorch and ros2 humble.
+FROM abmorobotics/aau_rover_ros_base:humble
+
+# Args
+ARG ROVER_REPO_NAME=isaac_rover_physical_2.0
+
+# Required ROS2 Packages
+
+
+# Change this repo later
+RUN git clone https://github.com/abmoRobotics/${ROVER_REPO_NAME}.git /home/${ROVER_REPO_NAME}
+
+# Built the rover
+RUN /bin/bash -c "source /opt/ros/humble/install/setup.bash && cd /home/${ROVER_REPO_NAME} && colcon build"
+
+#RUN apt-get update && apt-get install -y ros-humble-joy* && rm -rf /var/lib/apt/lists/*
+
+RUN pip3 install skrl["torch"]
+RUN pip3 install Jetson.GPIO
+
+RUN cd /home/isaac_rover_physical_2.0/src && git clone https://github.com/ros-drivers/joystick_drivers.git && cd joystick_drivers && git checkout remotes/origin/humble-devel
+
+# These are bugged and not needed for the project as for now
+RUN cd /home/isaac_rover_physical_2.0/src/joystick_drivers && rm -rf spacenav && rm -rf wiimote && rm -rf wiimote_msgs 
+
+RUN cd /home/isaac_rover_physical_2.0/src && git clone https://github.com/ros/diagnostics.git && cd diagnostics && git checkout remotes/origin/stale/humble
+RUN /bin/bash -c "cd /home/isaac_rover_physical_2.0 && source /opt/ros/humble/install/setup.bash && cd /home/${ROVER_REPO_NAME} && colcon build"
+#RUN cd /home/isaac_rover_physical_2.0 && colcon build
+#RUN pip3 install numpy
+RUN pip3 install onnx
+RUN pip3 install canopen
+RUN pip3 install numpy --upgrade
+WORKDIR /home/${ROVER_REPO_NAME}
+RUN echo "source /opt/ros/humble/install/setup.bash" >> ~/.bashrc
+RUN echo "source /home/${ROVER_REPO_NAME}/install/setup.bash" >> ~/.bashrc
+
+RUN apt-get install busybox
+RUN apt-get install iproute2 -y
+# Copy the entrypoint script into the container
+COPY entrypoint.sh /entrypoint.sh
+
+# Set the entrypoint script as the entry point for the container
+ENTRYPOINT ["/entrypoint.sh"]
+
+# RUN busybox devmem 0x0c303000 32 0x0000C400 && \
+#     busybox devmem 0x0c303008 32 0x0000C458 && \
+#     busybox devmem 0x0c303010 32 0x0000C400 && \
+#     busybox devmem 0x0c303018 32 0x0000C458
+# ARG uid
+# ARG gid
+# ARG gid_gpio
+# RUN groupadd -f -r -g $gid_gpio gpio
+# RUN groupadd -f -r -g 1000 user
+# # gpio needs to be main group, otherwise we get permission problems
+# RUN useradd -M --uid $uid -g $gid_gpio user --groups uucp,$gid,user \
+#     && echo 'user ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers.d/user \
+#     && echo 'Defaults exempt_group+=user' >> /etc/sudoers.d/user \
+#     && chmod a=r,o= /etc/sudoers.d/user
+# #RUN useradd -M --uid $uid --user-group user --groups uucp,$gid,$gid_gpio \
+# #  && echo 'user ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers.d/user \
+# #  && echo 'Defaults exempt_group+=user' >> /etc/sudoers.d/user \
+# #  && chmod a=r,o= /etc/sudoers.d/user
