@@ -1,9 +1,3 @@
-
-
-
-
-
-
 xhost +
 docker run --name isaac-sim --entrypoint bash -it --gpus all -e "ACCEPT_EULA=Y" --rm --network=host \
  -v $HOME/.Xauthority:/root/.Xauthority \
