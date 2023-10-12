@@ -1,1 +1,2 @@
-FROM nvcr.io/nvidia/isaac-sim:2022.2.1
+FROM nvcr.io/nvidia/isaac-sim:2022.2.0
+
