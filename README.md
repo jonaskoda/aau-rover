@@ -19,9 +19,9 @@ This repository contains all the files and documentation related to running the 
 1. cd docker-rover
 2. ./run.sh --name=CONTAINER_NAME --mode=MODE
 ```
-NOTE: 
-* *CONTAINER_NAME* is the desired name of the container
-* *MODE* is the mode of the container these are the available commands
+**Note:**
+***CONTAINER_NAME*** is the desired name of the container
+***MODE*** is the mode of the container these are the available commands
     * ***test:*** Temporary container, removed on stop, runs with the --rm tag.
     * ***devel*** - container where you can do development.
     * ***autostart*** - autostarts the container on boot, using --restart always tag.
