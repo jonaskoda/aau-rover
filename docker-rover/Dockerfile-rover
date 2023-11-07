@@ -4,8 +4,10 @@ FROM abmorobotics/aau_rover_ros_base:humble
 ENV DEBIAN_FRONTEND noninteractive
 
 # Args
-ARG ROVER_REPO_NAME=isaac_rover_physical_2.0
-ARG BASE_FOLDER=/home/orin/Documents
+ARG ROVER_REPO_SOFTWARE_NAME=rover-software
+ARG ROVER_REPO_HARDWARE_NAME=aau-rover-hardware
+ARG BASE_FOLDER=/home/orin/
+ARG ROS_WORKSPACE_NAME=ros_ws
 
 
 # Install utils
@@ -14,9 +16,9 @@ RUN apt-get update && apt-get install nano && apt-get install iputils-ping
 RUN apt-get install busybox && apt-get install iproute2 -y
 RUN apt-get install -y --no-install-recommends zstd wget less cmake curl gnupg2 \
     build-essential python3 python3-pip python3-dev python3-setuptools libusb-1.0-0-dev -y 
-RUN apt-get install libspnav-dev
-RUN apt-get install libbluetooth-dev
-RUN apt install libcwiid-dev
+RUN apt-get install libspnav-dev -y && \
+    apt-get install libbluetooth-dev -y && \
+    apt install libcwiid-dev -y
 # PIP packages
 RUN pip3 install grpcio==1.58.0
 RUN pip3 install skrl["torch"]
@@ -25,6 +27,7 @@ RUN pip3 install onnx
 RUN pip3 install canopen
 RUN pip3 install numpy --upgrade
 RUN pip3 install protobuf 
+RUN pip3 install pyrealsense2
 
 # Install the ZED SDK
 ARG ZED_SDK_MAJOR=4
@@ -47,25 +50,43 @@ RUN python3 /usr/local/zed/get_python_api.py
 # #This symbolic link is needed to use the streaming features on Jetson inside a container
 RUN ln -sf /usr/lib/aarch64-linux-gnu/tegra/libv4l2.so.0 /usr/lib/aarch64-linux-gnu/libv4l2.so
 
-# Change this repo later
-RUN git clone https://github.com/abmoRobotics/${ROVER_REPO_NAME}.git ${BASE_FOLDER}/${ROVER_REPO_NAME}
+## Fix https://github.com/ros/pluginlib/issues/219
+RUN cd /opt/ros/humble/build/pluginlib/pluginlib_enable_plugin_testing/install/test_pluginlib__test_pluginlib/share/test_pluginlib && \
+    sed -i '12i\  <maintainer email="placeholder@placeholder.com">placeholder</maintainer>' package.xml && \
+    sed -i '13i\  <license>MIT</license>' package.xml
 
-# Build the rover
-RUN /bin/bash -c "source /opt/ros/humble/install/setup.bash && cd ${BASE_FOLDER}/${ROVER_REPO_NAME} && colcon build"
+# Clone repos
+RUN mkdir -p ${BASE_FOLDER}/${ROS_WORKSPACE_NAME}/src && \
+    cd ${BASE_FOLDER}/${ROS_WORKSPACE_NAME}/src && \
+    git clone https://github.com/AAU-Space-Robotics/${ROVER_REPO_SOFTWARE_NAME}.git --recursive && \
+    git clone https://github.com/AAU-Space-Robotics/${ROVER_REPO_HARDWARE_NAME}.git --recursive
 
-#RUN apt-get update && apt-get install -y ros-humble-joy* && rm -rf /var/lib/apt/lists/*
+# Change working directory to ROS 2 Workspace
+WORKDIR ${BASE_FOLDER}/${ROS_WORKSPACE_NAME}
 
-RUN cd ${BASE_FOLDER}/isaac_rover_physical_2.0/src && git clone https://github.com/ros-drivers/joystick_drivers.git && cd joystick_drivers && git checkout remotes/origin/humble-devel
+# Install dependencies
+RUN apt-get update -y || true && rosdep update && \
+    rosdep install --from-paths src --ignore-src -r -y 
 
-# These are bugged and not needed for the project as for now
-RUN cd ${BASE_FOLDER}/isaac_rover_physical_2.0/src/joystick_drivers && rm -rf spacenav && rm -rf wiimote && rm -rf wiimote_msgs 
+# Build workspace
+RUN /bin/bash -c "source /opt/ros/humble/install/setup.bash && \
+    colcon build --symlink-install --parallel-workers $(nproc) \
+    --event-handlers console_direct+ --base-paths src \
+    --cmake-args ' -DCMAKE_BUILD_TYPE=Release' \
+    ' -DCMAKE_LIBRARY_PATH=/usr/local/cuda/lib64/stubs' \
+    ' -DCMAKE_CXX_FLAGS="-Wl,--allow-shlib-undefined"' \
+    ' --no-warn-unused-cli' "
 
-RUN cd ${BASE_FOLDER}/isaac_rover_physical_2.0/src && git clone https://github.com/ros/diagnostics.git && cd diagnostics && git checkout remotes/origin/stale/humble
-RUN /bin/bash -c "cd ${BASE_FOLDER}/isaac_rover_physical_2.0 && source /opt/ros/humble/install/setup.bash && cd ${BASE_FOLDER}/${ROVER_REPO_NAME} && colcon build"
-WORKDIR ${BASE_FOLDER}/${ROVER_REPO_NAME}
+
+# Source ROS 2 on startup
 RUN echo "source /opt/ros/humble/install/setup.bash" >> ~/.bashrc
-RUN echo "source ${BASE_FOLDER}/${ROVER_REPO_NAME}/install/setup.bash" >> ~/.bashrc
+RUN echo "source ${BASE_FOLDER}/${ROS_WORKSPACE_NAME}/install/setup.bash" >> ~/.bashrc
 
+
+
+RUN apt-key adv --keyserver keyserver.ubuntu.com --recv-key F6E65AC044F831AC80A06380C8B3A55A6F3EFCDE || sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-key F6E65AC044F831AC80A06380C8B3A55A6F3EFCDE && \
+    add-apt-repository "deb https://librealsense.intel.com/Debian/apt-repo $(lsb_release -cs) main" -u && \
+    apt-get install librealsense2-utils -y
 
 # Copy the entrypoint script into the container
 COPY entrypoint.sh /entrypoint.sh
