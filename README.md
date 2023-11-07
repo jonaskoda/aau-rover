@@ -20,12 +20,14 @@ This repository contains all the files and documentation related to running the 
 2. ./run.sh --name=CONTAINER_NAME --mode=MODE
 ```
 **Note:**
-***CONTAINER_NAME*** is the desired name of the container
-***MODE*** is the mode of the container these are the available commands
-    * ***test:*** Temporary container, removed on stop, runs with the --rm tag.
-    * ***devel*** - container where you can do development.
-    * ***autostart*** - autostarts the container on boot, using --restart always tag.
-    * ***autostart_stop*** - stop the autostarting of containers.
+
+- **CONTAINER_NAME**: Specify the desired name for your container.
+- **MODE**: Select the mode of operation for your container. Available options include:
+  - **test**: Initiates a temporary container which is removed upon termination, executed with the `--rm` flag.
+  - **devel**: Designates the container for development activities.
+  - **autostart**: Configures the container to automatically start during the system boot, employing the `--restart always` tag.
+  - **autostart_stop**: Disables the auto-start functionality of the container.
+
 ## Simulation 
 
 Coming soon ..
