@@ -93,12 +93,3 @@ COPY entrypoint.sh /entrypoint.sh
 
 # Set the entrypoint script as the entry point for the container
 ENTRYPOINT ["/entrypoint.sh"]
-
-
-
-
-
-
-
-
-
