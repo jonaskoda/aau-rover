@@ -19,6 +19,33 @@ This repository contains all the files and documentation related to running the 
 1. cd docker-rover
 2. ./run.sh --name=CONTAINER_NAME --mode=MODE
 ```
+
+plaintext
+
+### How to SSH into the Robot
+
+To access the robot via SSH, follow these steps:
+
+1. Open your terminal.
+
+2. Use the following command to SSH into the robot:
+
+```bash
+ssh orin@192.168.1.158
+```
+
+Enter the password when prompted. The password is 'orin'
+   
+```bash
+./run.sh --name=user
+```
+
+
+4. You will now have access to the root directory of the rover and you can see ros2 topics and furthermore navigate to the files for example here is rover-software. 
+```bash
+root@ubuntu:/home/orin/ros_ws/src/rover-software#
+``
+
 **Note:**
 
 - **CONTAINER_NAME**: Specify the desired name for your container.
