@@ -65,7 +65,7 @@ RUN mkdir -p ${BASE_FOLDER}/${ROS_WORKSPACE_NAME}/src && \
 WORKDIR ${BASE_FOLDER}/${ROS_WORKSPACE_NAME}
 
 # Install dependencies
-RUN apt-get update -y || true && rosdep update && \
+RUN apt-get update -y || true && rosdep init && rosdep update && \
     rosdep install --from-paths src --ignore-src -r -y 
 
 # Build workspace
