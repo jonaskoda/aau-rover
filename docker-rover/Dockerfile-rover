@@ -51,9 +51,9 @@ RUN python3 /usr/local/zed/get_python_api.py
 RUN ln -sf /usr/lib/aarch64-linux-gnu/tegra/libv4l2.so.0 /usr/lib/aarch64-linux-gnu/libv4l2.so
 
 ## Fix https://github.com/ros/pluginlib/issues/219
-RUN cd /opt/ros/humble/build/pluginlib/pluginlib_enable_plugin_testing/install/test_pluginlib__test_pluginlib/share/test_pluginlib && \
-    sed -i '12i\  <maintainer email="placeholder@placeholder.com">placeholder</maintainer>' package.xml && \
-    sed -i '13i\  <license>MIT</license>' package.xml
+# RUN cd /opt/ros/humble/build/pluginlib/pluginlib_enable_plugin_testing/install/test_pluginlib__test_pluginlib/share/test_pluginlib && \
+#     sed -i '12i\  <maintainer email="placeholder@placeholder.com">placeholder</maintainer>' package.xml && \
+#     sed -i '13i\  <license>MIT</license>' package.xml
 
 # Clone repos
 RUN mkdir -p ${BASE_FOLDER}/${ROS_WORKSPACE_NAME}/src && \
