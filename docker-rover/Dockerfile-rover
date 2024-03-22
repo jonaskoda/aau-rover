@@ -89,7 +89,7 @@ RUN apt-key adv --keyserver keyserver.ubuntu.com --recv-key F6E65AC044F831AC80A0
     apt-get install librealsense2-utils -y
 
 # Copy the entrypoint script into the container
-COPY ../docker-rover/entrypoint.sh /
+COPY docker-rover/entrypoint.sh /
 
 # Set the entrypoint script as the entry point for the container
 ENTRYPOINT ["/entrypoint.sh"]
