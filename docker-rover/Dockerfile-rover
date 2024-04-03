@@ -83,7 +83,7 @@ RUN /bin/bash -c "source /opt/ros/$ROS_DISTRO/install/setup.bash && \
 RUN echo "source ${BASE_FOLDER}/${ROS_WORKSPACE_NAME}/install/setup.bash" >> ~/.bashrc
 
 # Copy the entrypoint script into the container
-COPY entrypoint.sh /entrypoint.sh
+COPY ./entrypoint.sh /
 
 # Set the entrypoint script as the entry point for the container
 ENTRYPOINT ["/entrypoint.sh"]
