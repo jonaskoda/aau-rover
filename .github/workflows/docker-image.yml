@@ -31,9 +31,6 @@ jobs:
       with:
         images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
 
-    - name: Build the Docker image
-      run: docker build -f docker-rover/Dockerfile-rover -t rover-image ..
-
     - name: Build and push Docker image
       uses: docker/build-push-action@v5.2.0
       with:
