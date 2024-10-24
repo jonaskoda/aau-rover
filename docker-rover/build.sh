@@ -1,1 +1,1 @@
-docker build -f Dockerfile-rover -t rover-image .
+docker build --build-arg CACHEBUST=$(date +%s) -f Dockerfile-rover -t rover-image .
