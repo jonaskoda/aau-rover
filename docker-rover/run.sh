@@ -105,10 +105,11 @@ else
   esac
 
   # Run the Docker container with the specified options
-  nvidia-docker run $docker_options --name "${container_name}" \
+  docker run $docker_options --name "${container_name}" \
                -it \
               --privileged \
-              -v /lib/modules/5.10.104-tegra:/lib/modules/5.10.104-tegra \
+	      --runtime=nvidia \
+              -v /lib/modules/5.15.136-tegra:/lib/modules/5.15.136-tegra \
               --network=host \
                "${image_name}" \
                ${start_command} 
