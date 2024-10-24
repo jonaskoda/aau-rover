@@ -1,5 +1,6 @@
 #!/bin/bash
 
+source /opt/ros/humble/setup.bash
 
 busybox devmem 0x0c303000 32 0x0000C400
 busybox devmem 0x0c303008 32 0x0000C458
@@ -29,3 +30,4 @@ else
     alias controller="ros2 launch controller controller.launch.py"
 	bash
 fi
+
