@@ -1,12 +1,11 @@
-# Prebuilt base image with jetpack, pytorch and ros2 humble.
-FROM dustynv/ros:humble-ros-base-l4t-r35.1.0
-
-ENV DEBIAN_FRONTEND noninteractive
+# Prebuilt base image with jetpack 6.0, pytorch 2.4 and ROS2 humble, please ensure that it has already been built.
+FROM base-image-rover
+ENV DEBIAN_FRONTEND=noninteractive
 
 # Args
 ARG ROVER_REPO_SOFTWARE_NAME=rover-software
 ARG ROVER_REPO_HARDWARE_NAME=aau-rover-hardware
-ARG BASE_FOLDER=/home/orin
+ARG BASE_FOLDER=/root/orin
 ARG ROS_WORKSPACE_NAME=ros_ws
 ARG ROS_DISTRO=humble
 
@@ -22,68 +21,74 @@ RUN apt-get install libspnav-dev -y && \
     apt-get install libcwiid-dev -y
 RUN apt-get install git -y && \
     apt-get install python3-rosdep2 -y
+RUN  apt-get install kmod
 
 # PIP packages
 RUN pip3 install grpcio==1.58.0
-RUN pip3 install skrl["torch"]
+RUN pip3 install skrl==1.3.0
 RUN pip3 install Jetson.GPIO
 RUN pip3 install onnx
 RUN pip3 install canopen
 RUN pip3 install numpy --upgrade
 RUN pip3 install protobuf 
 RUN pip3 install requests 
-#RUN pip3 install pyrealsense2
+RUN pip3 install pyrealsense2
 
 # Install the ZED SDK
 ARG ZED_SDK_MAJOR=4
-ARG ZED_SDK_MINOR=0
-ARG ZED_SDK_PATCH=7
-ARG L4T_MAJOR=35
+ARG ZED_SDK_MINOR=2
+ARG ZED_SDK_PATCH=4
+ARG L4T_MAJOR=36
 ARG L4T_MINOR=3
 
 RUN echo "# R${L4T_MAJOR} (release), REVISION: ${L4T_MINOR}" > /etc/nv_tegra_release && \
-    apt-get update -y || true && \
-    wget -q --no-check-certificate -O ZED_SDK_Linux_JP.run \
-    https://download.stereolabs.com/zedsdk/${ZED_SDK_MAJOR}.${ZED_SDK_MINOR}/l4t${L4T_MAJOR}.${L4T_MINOR}/jetsons && \
-    chmod +x ZED_SDK_Linux_JP.run ; ./ZED_SDK_Linux_JP.run silent skip_tools && \
-    rm -rf /usr/local/zed/resources/* && \
-    rm -rf ZED_SDK_Linux_JP.run && \
-    rm -rf /var/lib/apt/lists/*
+   apt-get update -y || true && \
+   wget -q --no-check-certificate -O ZED_SDK_Linux_JP.run \
+   https://download.stereolabs.com/zedsdk/${ZED_SDK_MAJOR}.${ZED_SDK_MINOR}/l4t${L4T_MAJOR}.${L4T_MINOR}/jetsons && \
+   chmod +x ZED_SDK_Linux_JP.run ; ./ZED_SDK_Linux_JP.run -- silent skip_tools && \
+   rm -rf /usr/local/zed/resources/* && \
+   rm -rf ZED_SDK_Linux_JP.run && \
+   rm -rf /var/lib/apt/lists/*
 
 RUN python3 /usr/local/zed/get_python_api.py
 
 # This symbolic link is needed to use the streaming features on Jetson inside a container
 RUN ln -sf /usr/lib/aarch64-linux-gnu/tegra/libv4l2.so.0 /usr/lib/aarch64-linux-gnu/libv4l2.so
 
+# Forces Docker to rebuild steps below by changing the CACHEBUST value using $(date +%s) (time in seconds since 1970).
+ARG CACHEBUST=1
+
 # Clone repos
 RUN mkdir -p ${BASE_FOLDER}/${ROS_WORKSPACE_NAME}/src && \
     cd ${BASE_FOLDER}/${ROS_WORKSPACE_NAME}/src && \
     git clone https://github.com/AAU-Space-Robotics/${ROVER_REPO_SOFTWARE_NAME}.git --recursive && \
-    git clone https://github.com/AAU-Space-Robotics/${ROVER_REPO_HARDWARE_NAME}.git --recursive
+    git clone https://github.com/AAU-Space-Robotics/${ROVER_REPO_HARDWARE_NAME}.git 
 
 # Change working directory to ROS 2 Workspace
 WORKDIR ${BASE_FOLDER}/${ROS_WORKSPACE_NAME}
 
-# Install dependencies
-RUN apt-get update -y || true && rosdep update && \
-    rosdep install --from-paths src --ignore-src -r -y 
+# # Install dependencies
+# RUN apt-get update -y || true && rosdep update && \
+#     rosdep install --from-paths src --ignore-src -r -y 
 
-RUN pip install -U colcon-common-extensions
-# Build workspace
-RUN /bin/bash -c "source /opt/ros/$ROS_DISTRO/install/setup.bash && \
-  apt-get update -y || true && \
-  rosdep install --from-paths src --ignore-src -r -y && \
-  colcon build --parallel-workers $(nproc) --symlink-install \
-  --event-handlers console_direct+ --base-paths src \
-  --cmake-args ' -DCMAKE_BUILD_TYPE=Release' \
-  ' -DCMAKE_LIBRARY_PATH=/usr/local/cuda/lib64/stubs' \
-  ' -DCMAKE_CXX_FLAGS="-Wl,--allow-shlib-undefined"'"
+# RUN pip install -U colcon-common-extensions
+# # Build workspace
+# RUN /bin/bash -c "source /opt/ros/$ROS_DISTRO/install/setup.bash " 
+# #&& \
+# #  apt-get update -y || true && \
+# #  rosdep install --from-paths src --ignore-src -r -y && \
+#   #colcon build --parallel-workers $(nproc) --symlink-install \
+#   #--event-handlers console_direct+ --base-paths src \
+#   #--cmake-args ' -DCMAKE_BUILD_TYPE=Release' \
+#   #' -DCMAKE_LIBRARY_PATH=/usr/local/cuda/lib64/stubs' \
+#   #' -DCMAKE_CXX_FLAGS="-Wl,--allow-shlib-undefined"'"
 
-# Source ROS 2 on startup
-RUN echo "source ${BASE_FOLDER}/${ROS_WORKSPACE_NAME}/install/setup.bash" >> ~/.bashrc
+# # Source ROS 2 on startup
+# #RUN echo "source ${BASE_FOLDER}/${ROS_WORKSPACE_NAME}/install/setup.bash" >> ~/.bashrc
 
 # Copy the entrypoint script into the container
 COPY ./entrypoint.sh /
+#COPY .ros/ /root/.ros/
 
 # Set the entrypoint script as the entry point for the container
 ENTRYPOINT ["/entrypoint.sh"]
