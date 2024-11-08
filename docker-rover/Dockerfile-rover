@@ -8,6 +8,7 @@ ARG ROVER_REPO_HARDWARE_NAME=aau-rover-hardware
 ARG BASE_FOLDER=/root/orin
 ARG ROS_WORKSPACE_NAME=ros_ws
 ARG ROS_DISTRO=humble
+ARG ZED_WORKSPACE_NAME=ros2_zed_ws
 
 
 # Install utils
@@ -67,28 +68,42 @@ RUN mkdir -p ${BASE_FOLDER}/${ROS_WORKSPACE_NAME}/src && \
 # Change working directory to ROS 2 Workspace
 WORKDIR ${BASE_FOLDER}/${ROS_WORKSPACE_NAME}
 
-# # Install dependencies
-# RUN apt-get update -y || true && rosdep update && \
-#     rosdep install --from-paths src --ignore-src -r -y 
+# Install dependencies
+RUN apt-get update -y || true && rosdep update && \
+    rosdep install --from-paths src --ignore-src -r -y 
 
-# RUN pip install -U colcon-common-extensions
-# # Build workspace
-# RUN /bin/bash -c "source /opt/ros/$ROS_DISTRO/install/setup.bash " 
-# #&& \
-# #  apt-get update -y || true && \
-# #  rosdep install --from-paths src --ignore-src -r -y && \
-#   #colcon build --parallel-workers $(nproc) --symlink-install \
-#   #--event-handlers console_direct+ --base-paths src \
-#   #--cmake-args ' -DCMAKE_BUILD_TYPE=Release' \
-#   #' -DCMAKE_LIBRARY_PATH=/usr/local/cuda/lib64/stubs' \
-#   #' -DCMAKE_CXX_FLAGS="-Wl,--allow-shlib-undefined"'"
+RUN /bin/bash -c "source /opt/ros/$ROS_DISTRO/setup.bash; colcon build"
 
+#################################
+#### ZED camera setup processs ##
+#################################
+RUN mkdir -p ${BASE_FOLDER}/${ZED_WORKSPACE_NAME}/src && \
+	git clone --recurse-submodules -b humble-v4.1.4 https://github.com/stereolabs/zed-ros2-wrapper.git ${BASE_FOLDER}/${ZED_WORKSPACE_NAME}/src
+RUN apt-get update -y && \
+        rosdep update -y && \
+        rosdep install --from-paths ${BASE_FOLDER}/${ZED_WORKSPACE_NAME}/src --ignore-src -r -y
+
+RUN cd ${BASE_FOLDER}/${ZED_WORKSPACE_NAME} && \
+   /bin/bash -c "source /opt/ros/$ROS_DISTRO/setup.bash && \
+        colcon build --parallel-workers $(nproc) --symlink-install \
+        --event-handlers console_direct+ --base-paths src \
+        --cmake-args ' -DCMAKE_BUILD_TYPE=Release' \
+        ' -DCMAKE_LIBRARY_PATH=/usr/local/cuda/lib64/stubs' \
+        ' -DCMAKE_CXX_FLAGS="-Wl,--allow-shlib-undefined"' \
+        ' --no-warn-unused-cli' "
+
+
+RUN echo source ${BASE_FOLDER}/${ZED_WORKSPACE_NAME}/install/local_setup.sh >> ~/.bashrc && \
+    echo source /opt/ros/${ROS_DISTRO}/setup.bash >> ~/.bashrc 
 # # Source ROS 2 on startup
-# #RUN echo "source ${BASE_FOLDER}/${ROS_WORKSPACE_NAME}/install/setup.bash" >> ~/.bashrc
+RUN echo "source ${BASE_FOLDER}/${ROS_WORKSPACE_NAME}/install/setup.bash" >> ~/.bashrc
+
+RUN echo "export ROS_DOMAIN_ID=1" >> ~/.bashrc
+
 
 # Copy the entrypoint script into the container
 COPY ./entrypoint.sh /
-#COPY .ros/ /root/.ros/
+
 
 # Set the entrypoint script as the entry point for the container
 ENTRYPOINT ["/entrypoint.sh"]
