@@ -1,0 +1,276 @@
+# Prebuilt base image with jetpack 6.0, pytorch 2.4 and ROS2 humble, please ensure that it has already been built.
+FROM base-image-rover
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Args
+ARG ROVER_REPO_SOFTWARE_NAME=rover-software
+ARG ROVER_REPO_HARDWARE_NAME=aau-rover-hardware
+ARG BASE_FOLDER=/root/orin
+ARG ROS_WORKSPACE_NAME=ros_ws
+ARG ROS_DISTRO=humble
+
+
+# Install utils
+RUN apt-get update && apt-get install nano && apt-get install iputils-ping
+# Install tools for canbus
+RUN apt-get install busybox && apt-get install iproute2 -y
+RUN apt-get install -y --no-install-recommends zstd wget less cmake curl gnupg2 \
+    build-essential python3 python3-pip python3-dev python3-setuptools libusb-1.0-0-dev -y 
+RUN apt-get install libspnav-dev -y && \
+    apt-get install libbluetooth-dev -y && \
+    apt-get install libcwiid-dev -y
+RUN apt-get install git -y && \
+    apt-get install python3-rosdep2 -y
+RUN  apt-get install kmod
+
+# PIP packages
+RUN pip3 install grpcio==1.58.0
+RUN pip3 install skrl==1.3.0
+RUN pip3 install Jetson.GPIO
+RUN pip3 install onnx
+RUN pip3 install canopen
+RUN pip3 install numpy --upgrade
+RUN pip3 install protobuf 
+RUN pip3 install requests 
+RUN pip3 install pyrealsense2
+
+# Install the ZED SDK
+ARG ZED_SDK_MAJOR=4
+ARG ZED_SDK_MINOR=2
+ARG ZED_SDK_PATCH=4
+ARG L4T_MAJOR=36
+ARG L4T_MINOR=3
+
+#RUN echo "# R${L4T_MAJOR} (release), REVISION: ${L4T_MINOR}" > /etc/nv_tegra_release && \
+#   apt-get update -y || true && \
+#   wget -q --no-check-certificate -O ZED_SDK_Linux_JP.run \
+#   https://download.stereolabs.com/zedsdk/${ZED_SDK_MAJOR}.${ZED_SDK_MINOR}/l4t${L4T_MAJOR}.${L4T_MINOR}/jetsons && \
+#   chmod +x ZED_SDK_Linux_JP.run ; ./ZED_SDK_Linux_JP.run -- silent skip_tools && \
+#   rm -rf /usr/local/zed/resources/* && \
+#   rm -rf ZED_SDK_Linux_JP.run && \
+#   rm -rf /var/lib/apt/lists/*
+
+#RUN python3 /usr/local/zed/get_python_api.py
+
+# This symbolic link is needed to use the streaming features on Jetson inside a container
+#RUN ln -sf /usr/lib/aarch64-linux-gnu/tegra/libv4l2.so.0 /usr/lib/aarch64-linux-gnu/libv4l2.so
+
+# Forces Docker to rebuild steps below by changing the CACHEBUST value using $(date +%s) (time in seconds since 1970).
+#ARG CACHEBUST=1
+
+# Clone repos
+RUN mkdir -p ${BASE_FOLDER}/${ROS_WORKSPACE_NAME}/src && \
+    cd ${BASE_FOLDER}/${ROS_WORKSPACE_NAME}/src && \
+    git clone https://github.com/AAU-Space-Robotics/${ROVER_REPO_SOFTWARE_NAME}.git --recursive && \
+    git clone https://github.com/AAU-Space-Robotics/${ROVER_REPO_HARDWARE_NAME}.git 
+
+
+#################### add on for running libraries on GPU ##################################################################
+
+WORKDIR /root
+
+#########
+## Remove OpenCV,PCL,VTK before setup
+#########
+RUN apt-get remove --purge *opencv* -y
+RUN pip uninstall opencv-python opencv-python-headless
+RUN rm -rf ./usr/include/boost/compute/interop/opencv/*
+RUN apt-get remove --purge libpcl* -y
+RUN pip uninstall python-pcl
+RUN apt-get remove --purge libvtk* -y
+RUN rm -rf ./usr/include/boost/compute/interop/vtk/*
+RUN pip uninstall vtk
+
+######
+# Install nvidia-toolkit + CUDnn
+######
+
+RUN wget -q https://developer.download.nvidia.com/compute/cuda/12.2.0/local_installers/cuda_12.2.0_535.54.03_linux.run
+RUN sh cuda_12.2.0_535.54.03_linux.run --toolkit --silent
+ENV LD_LIBRARY_PATH=/usr/local/cuda-12.2/lib64${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
+#RUN echo 'export LD_LIBRARY_PATH=/usr/local/cuda-12.2/lib64${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}' >> ~/.bashrc
+ENV PATH=/usr/local/cuda-12.2/bin${PATH:+:${PATH}}
+#RUN echo 'export PATH=/usr/local/cuda-12.2/bin${PATH:+:${PATH}}' >> ~/.bashrc
+RUN ldconfig 
+
+RUN wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.1-1_all.deb -q
+RUN dpkg -i cuda-keyring_1.1-1_all.deb
+RUN apt-get update -q
+RUN apt-get -y install cudnn-cuda-12 
+
+#############
+## OPENCV for CUDA
+############
+
+RUN apt install cmake; apt install gcc g++; apt install python3 python3-dev python3-numpy; apt install libavcodec-dev libavformat-dev libswscale-dev 
+RUN apt install -y libgstreamer-plugins-base1.0-dev libgstreamer1.0-dev; apt install libgtk-3-dev; apt install libpng-dev libjpeg-dev libopenexr-dev libtiff-dev libwebp-dev 
+RUN git clone https://github.com/opencv/opencv.git
+RUN git clone https://github.com/opencv/opencv_contrib.git
+WORKDIR /root/opencv
+RUN mkdir build
+WORKDIR /root/opencv/build
+
+############
+## CMAKE for OpenCV
+############
+
+# adjust argument CUDA_ARCH_BIN based on your GPU
+RUN cmake -D CMAKE_BUILD_TYPE=RELEASE -D CMAKE_INSTALL_PREFIX=/usr/local -D WITH_CUDA=ON -D WITH_CUDNN=ON -D WITH_CUBLAS=ON -D WITH_TBB=ON -D OPENCV_DNN_CUDA=ON -D OPENCV_ENABLE_NONFREE=ON -D CUDA_ARCH_BIN=8.6 -D OPENCV_EXTRA_MODULES_PATH=$HOME/opencv_contrib/modules -D BUILD_EXAMPLES=OFF -D HAVE_opencv_python3=ON ..
+
+#################
+## Compile OpenCV
+#################
+
+#uses 48 cores, adjust based on your hardware
+RUN make -j48  
+
+##########################################
+## Install OpenCV + create necessary links
+##########################################
+
+RUN make install 
+RUN ldconfig
+#use appropriate python version  
+RUN ln -s /usr/local/lib/python3.10/site-packages/cv2 /usr/local/lib/python3.10/dist-packages/cv2 
+WORKDIR /root
+RUN rm -rf opencv opencv_contrib
+
+###############
+## VTK install
+###############
+
+RUN git clone --recursive https://gitlab.kitware.com/vtk/vtk.git ~/vtk/source
+RUN apt-get update && \
+    apt-get install -y \
+    build-essential \
+    cmake \
+    cmake-curses-gui \
+    mesa-common-dev \
+    mesa-utils \
+    freeglut3-dev \
+    ninja-build
+RUN mkdir -p /root/vtk/build
+WORKDIR /root/vtk/build
+RUN cmake -DCMAKE_BUILD_TYPE=Release -DVTK_USE_CUDA=ON ../source
+# uses 48 cores, adjust based on your hardware
+RUN make -j48
+RUN make install
+
+################
+## Eigen install
+################
+
+RUN apt-get update && \
+    apt-get install -y software-properties-common && \
+    add-apt-repository -y ppa:ubuntu-toolchain-r/test && \
+    apt-get update
+
+WORKDIR /root
+RUN wget -qO- https://gitlab.com/libeigen/eigen/-/archive/3.3.7/eigen-3.3.7.tar.gz | tar xz
+RUN apt install -y libblas-dev
+WORKDIR /root/eigen-3.3.7
+RUN mkdir build 
+WORKDIR /root/eigen-3.3.7/build
+RUN cmake .. -D  EIGEN_TEST_CUDA=ON
+RUN make -j48
+RUN make install
+WORKDIR /root
+RUN rm -rf eigen-3.3.7/ 
+RUN rm -f eigen-3.3.7.tar.gz
+
+################
+## Boost Install
+################
+
+WORKDIR /root
+RUN wget https://boostorg.jfrog.io/artifactory/main/release/1.80.0/source/boost_1_80_0.tar.bz2
+RUN tar -xjf boost_1_80_0.tar.bz2
+WORKDIR /root/boost_1_80_0
+RUN ./bootstrap.sh --with-libraries=all
+ENV PATH=/usr/local/cuda/bin:$PATH
+#RUN echo 'export PATH=/usr/local/cuda/bin:$PATH' >>~/.bashrc
+ENV CUDADIR=/usr/local/cuda
+RUN ./b2 toolset=gcc 
+RUN ./b2 toolset=gcc cxxflags="-D__CUDACC__" --cuda=nvcc --without-graph_parallel
+# RUN ./b2 toolset=gcc threading=multi link=shared  # havent tried this one yet
+RUN ./b2 install --prefix=/usr/local/boost
+ENV BOOST_ROOT=/usr/local/boost
+ENV CPLUS_INCLUDE_PATH=$BOOST_ROOT/include:$CPLUS_INCLUDE_PATH
+ENV LIBRARY_PATH=$BOOST_ROOT/lib:$LIBRARY_PATH
+
+################
+## FLANN install 
+################
+
+WORKDIR /root
+RUN git clone https://github.com/flann-lib/flann.git
+WORKDIR /root/flann
+RUN git checkout master
+RUN mkdir build
+WORKDIR /root/flann/build
+RUN cmake .. -DCMAKE_BUILD_TYPE=Release -D BUILD_CUDA_LIB=ON
+RUN make -j50
+RUN make install 
+
+##############
+## PCL install
+##############
+
+WORKDIR /root
+RUN git clone https://github.com/PointCloudLibrary/pcl.git && cd pcl && git checkout pcl-1.14.1
+WORKDIR /root/pcl
+RUN mkdir build
+WORKDIR /root/pcl/build
+RUN apt-get install libboost-all-dev
+RUN apt-get install libcjson-dev -y
+RUN apt install libpcap-dev -y
+RUN apt-get install freeglut3 freeglut3-dev
+RUN apt-get install libpcap-dev
+RUN apt-get install qt5-qmake qtbase5-dev qtchooser
+RUN apt-get update && apt-get install -y \
+    libboost-all-dev \
+    libeigen3-dev \
+    libflann-dev \
+    libusb-1.0-0-dev \
+    libopenni2-dev \
+    libpcl-dev
+RUN cmake .. -D BUILD_CUDA=ON -D BUILD_GPU=ON -D WITH_OPENGL=OFF
+# uses 48 cores, adjust based on your hardware
+RUN make -j48 
+RUN make install 
+
+###################
+## CudaSift install
+###################
+
+WORKDIR /root
+RUN git clone https://github.com/matlabbe/CudaSift.git
+WORKDIR /root/CudaSift
+RUN mkdir build
+WORKDIR /root/CudaSift/build
+# Add -DVERBOSE=OFF to cmake to avoid internal logs when including in your app
+RUN cmake ..; \
+make; \ 
+make install
+
+###################
+## RTABMap install
+###################
+
+WORKDIR /root
+RUN git clone https://github.com/introlab/rtabmap.git
+WORKDIR /root/pcl
+#RUN git checkout pcl-1.14.1 #this is 100% in the wrong place ( I've added added it in PCL section ) 
+WORKDIR /root/rtabmap/build
+RUN cmake .. -D WITH_CUDASIFT=ON -D WITH_QT=OFF; \
+# uses 48 cores, adjust based on your hardware
+make -j48; \
+make install
+
+
+# Copy the entrypoint script into the container
+COPY ./entrypoint.sh /
+#COPY .ros/ /root/.ros/
+
+# Set the entrypoint script as the entry point for the container
+ENTRYPOINT ["/entrypoint.sh"]

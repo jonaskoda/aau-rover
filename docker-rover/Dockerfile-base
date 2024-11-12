@@ -1,5 +1,6 @@
 # Use the latest version of Jetpack as base image
-FROM nvcr.io/nvidia/l4t-jetpack:r36.3.0
+#FROM nvcr.io/nvidia/l4t-jetpack:r36.3.0
+FROM nvidia/cuda:12.2.0-base-ubuntu22.04
 
 # Avoid prompts with apt-get
 ENV DEBIAN_FRONTEND=noninteractive
@@ -28,12 +29,16 @@ RUN pip3 install --no-cache-dir setuptools Cython wheel numpy colcon-common-exte
 
 # Use a wheel from Nvidia instead of building from source
 # Check https://developer.download.nvidia.com/compute/redist/jp/v512/pytorch/ for more details
-ARG PYTORCH_URL=https://developer.download.nvidia.com/compute/redist/jp/v60/pytorch/torch-2.4.0a0+f70bd71a48.nv24.06.15634931-cp310-cp310-linux_aarch64.whl
-ARG PYTORCH_WHL=torch-2.4.0a0+f70bd71a48.nv24.06.15634931-cp310-cp310-linux_aarch64.whl
+#ARG PYTORCH_URL=https://developer.download.nvidia.com/compute/redist/jp/v60/pytorch/#torch-2.4.0a0+f70bd71a48.nv24.06.15634931-cp310-cp310-linux_aarch64.whl
+#ARG PYTORCH_WHL=torch-2.4.0a0+f70bd71a48.nv24.06.15634931-cp310-cp310-linux_aarch64.whl
 
-RUN wget --quiet --show-progress --progress=bar:force:noscroll --no-check-certificate ${PYTORCH_URL} -O ${PYTORCH_WHL} && \
-    pip3 install --no-cache-dir --verbose ${PYTORCH_WHL} && \
-    rm ${PYTORCH_WHL}
+RUN apt-get update; apt-get install wget
+
+#RUN wget --quiet --show-progress --progress=bar:force:noscroll --no-check-certificate $#{PYTORCH_URL} -O ${PYTORCH_WHL}
+#RUN pip3 install --no-cache-dir --verbose ${PYTORCH_WHL} && \
+#    rm ${PYTORCH_WHL}
+
+RUN pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
 
 ###################################
 ###     Install cuSPARSELt      ###
